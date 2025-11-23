@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "web-scraper": {
+      "command": "python",
+      "args": ["c:/Scraper/mcp_scraper_server.py"],
+      "env": {},
+      "description": "Web scraping MCP server with crawling and summarization capabilities"
+    }
+  }
+}

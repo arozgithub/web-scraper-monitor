@@ -1,0 +1,453 @@
+async function fetchPages() {
+    try {
+        const response = await fetch('/api/pages');
+        const pages = await response.json();
+        renderPages(pages);
+    } catch (error) {
+        console.error('Error fetching pages:', error);
+    }
+}
+
+function renderPages(groupedPages) {
+    const grid = document.getElementById('pagesGrid');
+
+    if (Object.keys(groupedPages).length === 0) {
+        grid.innerHTML = '<div style="text-align:center; color:var(--text-secondary);">No pages monitored yet. Add a URL above.</div>';
+        return;
+    }
+
+    grid.innerHTML = Object.entries(groupedPages).map(([rootUrl, data]) => `
+        <div class="root-card" id="card-${btoa(rootUrl)}">
+            <div class="root-header" onclick="toggleCard(this)">
+                <div class="root-info">
+                    <h3>${rootUrl}</h3>
+                    <div class="root-stats">
+                        ${data.pages.length} pages monitored • 
+                        Schedule: Every ${data.schedule ? data.schedule.val + ' ' + data.schedule.unit : 'N/A'}
+                    </div>
+                </div>
+                <div class="root-actions">
+                    <label class="switch" onclick="event.stopPropagation()">
+                        <input type="checkbox" ${data.schedule && data.schedule.active ? 'checked' : ''} onchange="toggleSchedule('${rootUrl}', this.checked)">
+                        <span class="slider round"></span>
+                    </label>
+                    <button class="btn-delete" onclick="deleteRoot('${rootUrl}', event)">Delete</button>
+                </div>
+            </div>
+            <div class="child-list">
+                ${data.master_summary ? `<div class="master-summary"><strong>Site Overview:</strong><br>${data.master_summary}</div>` : ''}
+                ${data.pages.map(page => `
+                    <div class="child-item">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <a href="${page.url}" target="_blank" class="child-url">${page.url}</a>
+                            <button class="btn-history" onclick="viewHistory('${page.url}', event)">History</button>
+                        </div>
+                        <div class="child-summary">${page.summary || 'No summary available.'}</div>
+                        <div style="font-size:0.8rem; color: #64748b; margin-top:4px;">Last Scraped: ${new Date(page.last_scraped).toLocaleString()}</div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+function toggleCard(header) {
+    header.parentElement.classList.toggle('expanded');
+}
+
+async function toggleSchedule(rootUrl, isActive) {
+    try {
+        const response = await fetch('/api/schedule/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ root_url: rootUrl, is_active: isActive })
+        });
+        const result = await response.json();
+        if (!result.success) {
+            alert('Error: ' + result.message);
+            fetchPages(); // Revert UI on error
+        }
+    } catch (error) {
+        console.error('Error toggling schedule:', error);
+    }
+}
+
+async function deleteRoot(rootUrl, event) {
+    event.stopPropagation(); // Prevent card expansion
+    if (!confirm(`Are you sure you want to delete ${rootUrl} and all its ${rootUrl === 'Uncategorized' ? 'pages' : 'sub-pages'}?`)) return;
+
+    try {
+        const response = await fetch('/api/pages', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ root_url: rootUrl })
+        });
+        const result = await response.json();
+        if (result.success) {
+            fetchPages();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error deleting:', error);
+    }
+}
+
+async function addUrl() {
+    const input = document.getElementById('urlInput');
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const intervalVal = document.getElementById('intervalVal');
+    const intervalUnit = document.getElementById('intervalUnit');
+
+    const url = input.value;
+    const apiKey = apiKeyInput.value;
+
+    if (!url) {
+        alert('Please enter a URL');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/pages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                url: url,
+                apiKey: apiKey,
+                intervalVal: intervalVal.value,
+                intervalUnit: intervalUnit.value
+            }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            input.value = '';
+            fetchPages();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to add URL');
+    }
+}
+
+async function scrape(url) {
+    try {
+        const response = await fetch('/api/scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+        const result = await response.json();
+        alert(result.message);
+        fetchPages();
+    } catch (error) {
+        console.error('Error scraping:', error);
+    }
+}
+
+async function viewHistory(url, event) {
+    event.stopPropagation();
+
+    try {
+        const response = await fetch(`/api/history/${encodeURIComponent(url)}`);
+        const history = await response.json();
+
+        if (history.length === 0) {
+            alert('No history available yet.');
+            return;
+        }
+
+        const historyHtml = history.map((h, index) => `
+            <div style="padding: 10px; border-bottom: 1px solid #333; ${h.changed ? 'background: rgba(251, 191, 36, 0.1);' : ''}">
+                <strong>${index === 0 ? 'Latest' : `Version ${index + 1}`}</strong> - ${new Date(h.scraped_at).toLocaleString()}
+                ${h.changed ? '<span style="color: #fbbf24;"> ⚠ Changed</span>' : ''}
+                <div style="margin-top: 8px; font-size: 0.9rem;">${h.summary || 'No summary'}</div>
+            </div>
+        `).join('');
+
+        // Create a modal-like display
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; justify-content: center; align-items: center;';
+        modal.innerHTML = `
+            <div style="background: #1e293b; padding: 24px; border-radius: 16px; max-width: 800px; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);">
+                <h2 style="margin-top: 0; color: #38bdf8;">Scrape History</h2>
+                <p style="color: #94a3b8; margin-bottom: 20px; word-break: break-all;">${url}</p>
+                ${historyHtml}
+                <button class="btn" style="margin-top: 20px; width: 100%;" onclick="this.parentElement.parentElement.remove()">Close</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    } catch (error) {
+        console.error('Error fetching history:', error);
+        alert('Failed to load history');
+    }
+}
+
+// Tab Switching
+function showTab(tabName) {
+    // Update active tab button
+    document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+    event.target.classList.add('active');
+
+    // Show/hide views
+    document.getElementById('monitor-view').style.display = tabName === 'monitor' ? 'block' : 'none';
+    document.getElementById('analytics-view').style.display = tabName === 'analytics' ? 'block' : 'none';
+    document.getElementById('chat-view').style.display = tabName === 'chat' ? 'block' : 'none';
+
+    // Load analytics if switching to analytics tab
+    if (tabName === 'analytics') {
+        const timeWindow = document.getElementById('timeWindow').value;
+        loadAnalytics(timeWindow);
+    }
+}
+
+// Analytics Functions
+let trendsChart = null;
+let topSitesChart = null;
+
+async function loadAnalytics(window = '24h') {
+    try {
+        const response = await fetch(`/api/analytics?window=${window}`);
+        const data = await response.json();
+
+        // Render KPIs
+        renderKPIs(data.kpis);
+
+        // Render Charts
+        renderCharts(data.trends, data.top_root_sites);
+
+        // Render Recent Changes
+        renderRecentChanges(data.recent_changes);
+
+        // Render Site Insights
+        renderSiteInsights(data.per_root_site_insights);
+    } catch (error) {
+        console.error('Error loading analytics:', error);
+    }
+}
+
+function renderKPIs(kpis) {
+    const grid = document.getElementById('kpiGrid');
+    grid.innerHTML = `
+        <div class="kpi-card">
+            <div class="kpi-label">Total Sites</div>
+            <div class="kpi-value">${kpis.total_root_sites}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Total Pages</div>
+            <div class="kpi-value">${kpis.total_pages}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Scrapes</div>
+            <div class="kpi-value">${kpis.scrapes_in_range}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Changes</div>
+            <div class="kpi-value">${kpis.changes_in_range}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Success Rate</div>
+            <div class="kpi-value">${kpis.success_rate}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Avg Duration</div>
+            <div class="kpi-value">${kpis.avg_scrape_duration}</div>
+        </div>
+    `;
+}
+
+function renderCharts(trends, topSites) {
+    // Trends Chart
+    const trendsCtx = document.getElementById('trendsChart').getContext('2d');
+
+    if (trendsChart) {
+        trendsChart.destroy();
+    }
+
+    const dates = Object.keys(trends.daily_scrapes).sort();
+
+    trendsChart = new Chart(trendsCtx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: 'Scrapes',
+                data: dates.map(d => trends.daily_scrapes[d] || 0),
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                tension: 0.4
+            }, {
+                label: 'Changes',
+                data: dates.map(d => trends.daily_changes[d] || 0),
+                borderColor: '#fbbf24',
+                backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#cbd5e1' } }
+            },
+            scales: {
+                y: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(203, 213, 225, 0.1)' } },
+                x: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(203, 213, 225, 0.1)' } }
+            }
+        }
+    });
+
+    // Top Sites Chart
+    const topSitesCtx = document.getElementById('topSitesChart').getContext('2d');
+
+    if (topSitesChart) {
+        topSitesChart.destroy();
+    }
+
+    topSitesChart = new Chart(topSitesCtx, {
+        type: 'bar',
+        data: {
+            labels: topSites.map(s => new URL(s.root_url || 'N/A').hostname),
+            datasets: [{
+                label: 'Changes',
+                data: topSites.map(s => s.changes),
+                backgroundColor: '#34d399'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(203, 213, 225, 0.1)' } },
+                x: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(203, 213, 225, 0.1)' } }
+            }
+        }
+    });
+}
+
+function renderRecentChanges(changes) {
+    const feed = document.getElementById('recentChangesFeed');
+    if (changes.length === 0) {
+        feed.innerHTML = '<p style="color: #94a3b8;">No recent changes</p>';
+        return;
+    }
+
+    feed.innerHTML = changes.map(c => `
+        <div class="feed-item">
+            <div class="feed-time">${new Date(c.date).toLocaleString()}</div>
+            <div class="feed-url">${c.page_url}</div>
+            <div class="feed-summary">${c.summary}</div>
+        </div>
+    `).join('');
+}
+
+function renderSiteInsights(insights) {
+    const list = document.getElementById('siteInsightsList');
+    const keys = Object.keys(insights);
+
+    if (keys.length === 0) {
+        list.innerHTML = '<p style="color: #94a3b8;">No sites monitored</p>';
+        return;
+    }
+
+    list.innerHTML = keys.map(key => {
+        const insight = insights[key];
+        return `
+            <div class="insight-item">
+                <div class="insight-header">${key}</div>
+                <div class="insight-stats">
+                    <span>📄 ${insight.total_pages} pages</span>
+                    <span>🔄 ${insight.scrapes_in_range} scrapes</span>
+                    <span>⚡ ${insight.changes_in_range} changes</span>
+                    <span>📊 ${insight.change_rate} change rate</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Initial load
+// Chat Function
+async function sendChat() {
+    const urlInput = document.getElementById('chatUrlInput');
+    const apiKeyInput = document.getElementById('chatApiKeyInput');
+    const queryInput = document.getElementById('chatQueryInput');
+    const messagesDiv = document.getElementById('chatMessages');
+
+    const url = urlInput.value;
+    const apiKey = apiKeyInput.value;
+    const query = queryInput.value;
+
+    if (!query) return;
+    if (!apiKey) {
+        alert('API Key is required');
+        return;
+    }
+
+    // Add user message
+    messagesDiv.innerHTML += `
+        <div class="chat-message user" style="margin: 10px 0; text-align: right;">
+            <span style="background: #38bdf8; color: #0f172a; padding: 8px 12px; border-radius: 12px; display: inline-block;">${query}</span>
+        </div>
+    `;
+    queryInput.value = '';
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    // Show loading
+    const loadingId = 'loading-' + Date.now();
+    messagesDiv.innerHTML += `
+        <div class="chat-message system" id="${loadingId}" style="margin: 10px 0;">
+            <span style="color: #94a3b8;">Thinking...</span>
+        </div>
+    `;
+
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, query, apiKey })
+        });
+
+        const data = await response.json();
+
+        // Remove loading
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+
+        if (data.error) {
+            messagesDiv.innerHTML += `
+                <div class="chat-message system error" style="margin: 10px 0; color: #ef4444;">
+                    Error: ${data.error}
+                </div>
+            `;
+        } else {
+            // Show answer
+            const answerHtml = data.answer.replace(/\n/g, '<br>');
+            messagesDiv.innerHTML += `
+                <div class="chat-message system" style="margin: 10px 0;">
+                    <div style="background: #1e293b; padding: 16px; border-radius: 12px; border: 1px solid #334155; color: #e2e8f0;">
+                        ${answerHtml}
+                    </div>
+                </div>
+            `;
+        }
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    } catch (error) {
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+        console.error(error);
+        alert('Chat failed');
+    }
+}
+
+// Initial load
+fetchPages();

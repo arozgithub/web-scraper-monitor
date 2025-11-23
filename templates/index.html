@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Monitor & Scraper</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Website Monitor & Scraper</h1>
+            <p>Monitor changes, scrape content, and get AI summaries.</p>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showTab('monitor')">Monitor</button>
+            <button class="nav-tab" onclick="showTab('analytics')">Analytics</button>
+            <button class="nav-tab" onclick="showTab('chat')">Chat (RAG)</button>
+        </div>
+
+        <!-- Monitor View -->
+        <div id="monitor-view">
+            <div class="input-group">
+                <input type="text" id="urlInput" placeholder="Enter website URL to monitor (e.g., https://example.com)">
+                <input type="password" id="apiKeyInput" placeholder="OpenAI API Key (Optional)">
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" id="intervalVal" value="60" min="1" style="width: 100px;">
+                    <select id="intervalUnit" style="flex: 1;">
+                        <option value="seconds">Seconds</option>
+                        <option value="minutes" selected>Minutes</option>
+                        <option value="hours">Hours</option>
+                        <option value="days">Days</option>
+                    </select>
+                </div>
+                <button onclick="addUrl()">Start Monitoring</button>
+            </div>
+
+            <div class="grid" id="pagesGrid">
+                <!-- Pages will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Analytics View -->
+        <div id="analytics-view" style="display: none;">
+            <div class="analytics-controls">
+                <select id="timeWindow" onchange="loadAnalytics(this.value)">
+                    <option value="24h">Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="14d">Last 14 Days</option>
+                </select>
+                <button onclick="loadAnalytics(document.getElementById('timeWindow').value)">Refresh</button>
+            </div>
+
+            <div class="kpi-grid" id="kpiGrid">
+                <!-- KPIs will be loaded here -->
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card">
+                    <h3>Scrapes vs Changes</h3>
+                    <canvas id="trendsChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Top Sites by Changes</h3>
+                    <canvas id="topSitesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="analytics-details">
+                <div class="details-card">
+                    <h3>Recent Changes</h3>
+                    <div id="recentChangesFeed" class="feed-list"></div>
+                </div>
+                <div class="details-card">
+                    <h3>Site Insights</h3>
+                    <div id="siteInsightsList" class="insights-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat View -->
+        <div id="chat-view" style="display: none;">
+            <div class="input-group">
+                <input type="text" id="chatUrlInput" placeholder="Enter website URL to chat with">
+                <input type="password" id="chatApiKeyInput" placeholder="OpenAI API Key">
+            </div>
+            <div class="chat-container"
+                style="margin-top: 20px; border: 1px solid #eee; padding: 20px; border-radius: 8px; height: 400px; overflow-y: auto; background: #f9f9f9;"
+                id="chatMessages">
+                <div class="chat-message system">
+                    <p>Enter a URL and ask a question to chat with the website content.</p>
+                </div>
+            </div>
+            <div class="input-group" style="margin-top: 20px;">
+                <input type="text" id="chatQueryInput" placeholder="Ask a question..."
+                    onkeypress="if(event.key === 'Enter') sendChat()">
+                <button onclick="sendChat()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>

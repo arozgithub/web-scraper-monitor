@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Screenshots (optional - uncomment if you want to exclude)
+# static/screenshots/
+
+# Logs
+*.log
+
+# Environment variables and secrets
+.env
+*.key
+*_api_key.txt
+
+# n8n specific (if you don't want to commit these)
+n8n_system_prompt.txt
+
+# Test/diagnostic scripts (optional)
+check_*.py
+test_*.py

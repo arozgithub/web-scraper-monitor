@@ -1,0 +1,58 @@
+
+# Task: Website Scraper & Monitor
+
+- [x] Project Initialization
+- [x] Core Components Implementation
+- [x] Automation & Interface
+- [x] Verification
+- [x] Web Interface Implementation
+- [x] AI & Advanced Scraping <!-- id: 26 -->
+    - [x] Install `openai` <!-- id: 27 -->
+    - [x] Update `analyzer.py` with OpenAI API <!-- id: 28 -->
+    - [x] Implement Background Crawler in `app.py` <!-- id: 29 -->
+    - [x] Update UI to support API Key input <!-- id: 30 -->
+- [x] UI Refinement & Data Restructuring <!-- id: 31 -->
+    - [x] Update Database Schema (Add `root_url` column) <!-- id: 32 -->
+    - [x] Update `storage.py` to handle root URLs <!-- id: 33 -->
+    - [x] Update `app.py` APIs (Group by root, Delete endpoint) <!-- id: 34 -->
+    - [x] Redesign Frontend (`index.html`, `style.css`, `script.js`) <!-- id: 35 -->
+        - [x] Grouped Cards per Root URL <!-- id: 36 -->
+        - [x] Expand/Collapse details <!-- id: 37 -->
+        - [x] Delete functionality <!-- id: 38 -->
+- [x] Global Site Summarization <!-- id: 39 -->
+    - [x] Update Database Schema (`site_summaries` table) <!-- id: 40 -->
+    - [x] Update `analyzer.py` to generate master summary <!-- id: 41 -->
+    - [x] Update `app.py` to trigger master summary after crawl <!-- id: 42 -->
+    - [x] Update UI to display master summary <!-- id: 43 -->
+- [x] **Analytics Dashboard Backend** <!-- id: 4 -->
+    - [x] Create `scrape_runs` and `change_events` tables <!-- id: 5 -->
+    - [x] Log scrape execution metrics (start/end, status, bytes) <!-- id: 6 -->
+    - [x] Log detailed change events (diff summary, relevance) <!-- id: 7 -->
+    - [x] Implement `get_analytics` aggregation function <!-- id: 8 -->
+    - [x] Create `/api/analytics` endpoint <!-- id: 9 -->
+- [x] **Analytics Dashboard Frontend** <!-- id: 10 -->
+    - [x] Create Analytics page/view <!-- id: 11 -->
+## Enterprise Features Upgrade <!-- id: 50 -->
+- [x] **Advanced Scraping Engine** <!-- id: 51 -->
+    - [x] Install Playwright & Fake-UserAgent <!-- id: 52 -->
+    - [x] Implement `fetch_page_playwright` for JS rendering & screenshots <!-- id: 53 -->
+    - [x] Add Proxy & User-Agent rotation logic <!-- id: 54 -->
+- [x] **Intelligent Data & RAG** <!-- id: 55 -->
+    - [x] Implement Vector Store (ChromaDB/Simple) for scraped content <!-- id: 56 -->
+    - [x] Create `/chat` endpoint for RAG <!-- id: 57 -->
+- [x] **Visual Monitoring** <!-- id: 58 -->
+    - [x] Implement Screenshot storage & retrieval <!-- id: 59 -->
+    - [x] Implement Visual Diffing (Text & Screenshot) <!-- id: 60 -->
+- [x] **UI Enhancements** <!-- id: 61 -->
+    - [x] Add "Render JS" toggle <!-- id: 62 -->
+    - [x] Add Chat Interface <!-- id: 63 -->
+    - [x] Display Screenshots & Diffs <!-- id: 64 -->
+
+- [x] Advanced Scheduling & Automation <!-- id: 44 -->
+    - [x] Update Database Schema (`schedules` table) <!-- id: 45 -->
+    - [x] Refactor `scheduler_service.py` for dynamic jobs <!-- id: 46 -->
+    - [x] Update `app.py` APIs (Add/Toggle Schedule) <!-- id: 47 -->
+    - [x] Update Frontend (Inputs & Toggle Switch) <!-- id: 48 -->
+        - [ ] Grouped Cards per Root URL <!-- id: 36 -->
+        - [ ] Expand/Collapse details <!-- id: 37 -->
+        - [ ] Delete functionality <!-- id: 38 -->
