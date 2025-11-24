@@ -4,10 +4,12 @@ No MCP dependency required - just a clean HTTP API.
 """
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import scraper
 import analyzer
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
 @app.route('/scrape', methods=['POST'])
 def scrape_url():
@@ -399,6 +401,36 @@ def generate_diff():
     html_diff = d.make_file(text1.splitlines(), text2.splitlines(), context=True, numlines=2)
     
     return html_diff
+
+@app.route('/linkedin-scrape', methods=['POST'])
+def linkedin_scrape():
+    """
+    Scrape LinkedIn profile or company page using saved session.
+    
+    Request body:
+    {
+        "url": "https://www.linkedin.com/in/...",
+        "headless": true // Optional (default: true)
+    }
+    """
+    data = request.json
+    url = data.get('url')
+    headless = data.get('headless', True)
+    
+    if not url:
+        return jsonify({"error": "URL is required"}), 400
+        
+    try:
+        import linkedin_scraper
+        result = linkedin_scraper.scrape_linkedin_page(url, headless=headless)
+        
+        if "error" in result:
+            return jsonify({"success": False, "error": result['error']}), 400
+            
+        return jsonify({"success": True, "data": result})
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():

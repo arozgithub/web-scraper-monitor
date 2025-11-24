@@ -98,6 +98,7 @@ async function addUrl() {
     const apiKeyInput = document.getElementById('apiKeyInput');
     const intervalVal = document.getElementById('intervalVal');
     const intervalUnit = document.getElementById('intervalUnit');
+    const captureScreenshots = document.getElementById('captureScreenshots');
 
     const url = input.value;
     const apiKey = apiKeyInput.value;
@@ -117,7 +118,8 @@ async function addUrl() {
                 url: url,
                 apiKey: apiKey,
                 intervalVal: intervalVal.value,
-                intervalUnit: intervalUnit.value
+                intervalUnit: intervalUnit.value,
+                captureScreenshots: captureScreenshots.checked
             }),
         });
 
@@ -197,7 +199,9 @@ function showTab(tabName) {
     // Show/hide views
     document.getElementById('monitor-view').style.display = tabName === 'monitor' ? 'block' : 'none';
     document.getElementById('analytics-view').style.display = tabName === 'analytics' ? 'block' : 'none';
+    document.getElementById('linkedin-view').style.display = tabName === 'linkedin' ? 'block' : 'none';
     document.getElementById('chat-view').style.display = tabName === 'chat' ? 'block' : 'none';
+    document.getElementById('diff-view').style.display = tabName === 'diff' ? 'block' : 'none';
 
     // Load analytics if switching to analytics tab
     if (tabName === 'analytics') {
@@ -336,15 +340,29 @@ function renderCharts(trends, topSites) {
 function renderRecentChanges(changes) {
     const feed = document.getElementById('recentChangesFeed');
     if (changes.length === 0) {
-        feed.innerHTML = '<p style="color: #94a3b8;">No recent changes</p>';
+        feed.innerHTML = '<p style="color: #94a3b8;">No recent activity</p>';
         return;
     }
 
     feed.innerHTML = changes.map(c => `
-        <div class="feed-item">
-            <div class="feed-time">${new Date(c.date).toLocaleString()}</div>
-            <div class="feed-url">${c.page_url}</div>
-            <div class="feed-summary">${c.summary}</div>
+        <div class="feed-item" style="border-left: 4px solid ${c.changed ? '#4CAF50' : '#ddd'};">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div style="flex: 1;">
+                    <div class="feed-time">${new Date(c.date).toLocaleString()}</div>
+                    <div class="feed-url">${c.page_url}</div>
+                </div>
+                ${c.changed ? `
+                <button onclick="viewDiffForUrl('${c.page_url}')" 
+                    style="padding: 6px 12px; background: linear-gradient(135deg, #4CAF50, #45a049); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap; margin-left: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                    🔍 View Diff
+                </button>
+                ` : `
+                <span style="padding: 6px 12px; background: #f5f5f5; color: #999; border-radius: 6px; font-size: 12px; white-space: nowrap; margin-left: 10px;">
+                    No changes
+                </span>
+                `}
+            </div>
+            <div class="feed-summary" style="color: ${c.changed ? '#333' : '#999'};">${c.summary || 'No summary available'}</div>
         </div>
     `).join('');
 }
@@ -446,6 +464,258 @@ async function sendChat() {
         if (loadingEl) loadingEl.remove();
         console.error(error);
         alert('Chat failed');
+    }
+}
+
+// Screenshot Functions
+async function takeScreenshot() {
+    const urlInput = document.getElementById('screenshotUrlInput');
+    const url = urlInput.value.trim();
+
+    if (!url) {
+        alert('Please enter a URL');
+        return;
+    }
+
+    try {
+        const response = await fetch('http://localhost:5001/screenshot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, use_proxy: false })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Screenshot captured successfully!');
+            loadScreenshotGallery();
+            urlInput.value = '';
+        } else {
+            alert('Failed to capture screenshot: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error(error);
+        alert('Error capturing screenshot: ' + error.message);
+    }
+}
+
+async function loadScreenshotGallery() {
+    const gallery = document.getElementById('screenshotGallery');
+
+    try {
+        // List screenshot files from static directory
+        const response = await fetch('/static/screenshots/');
+
+        if (response.ok) {
+            const html = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const links = Array.from(doc.querySelectorAll('a'))
+                .filter(a => a.href.endsWith('.png'))
+                .map(a => a.href);
+
+            if (links.length === 0) {
+                gallery.innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">No screenshots yet. Capture one above!</p>';
+                return;
+            }
+
+            gallery.innerHTML = links.map(link => {
+                const filename = link.split('/').pop();
+                return `
+                    <div class="screenshot-item" style="margin: 15px 0; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <div style="margin-bottom: 10px;">
+                            <strong>📸 ${filename}</strong>
+                            <a href="${link}" download style="float: right; color: #2196F3; text-decoration: none;">⬇️ Download</a>
+                        </div>
+                        <img src="${link}" alt="${filename}" 
+                            style="width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;"
+                            onclick="window.open('${link}', '_blank')">
+                    </div>
+                `;
+            }).join('');
+        } else {
+            gallery.innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">Unable to load screenshot gallery. Directory may be empty.</p>';
+        }
+    } catch (error) {
+        console.error('Error loading screenshots:', error);
+        gallery.innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">Use the screenshot API to capture pages. Screenshots will appear here.</p>';
+    }
+}
+
+// Visual Diff Functions
+async function generateDiff() {
+    const text1 = document.getElementById('diffText1').value;
+    const text2 = document.getElementById('diffText2').value;
+    const resultDiv = document.getElementById('diffResult');
+
+    if (!text1 || !text2) {
+        alert('Please enter text in both boxes');
+        return;
+    }
+
+    resultDiv.innerHTML = '<p style="text-align: center; color: #666;">Generating diff...</p>';
+
+    try {
+        const response = await fetch('/api/diff', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text1, text2 })
+        });
+
+        if (response.ok) {
+            const diffHtml = await response.text();
+            resultDiv.innerHTML = diffHtml;
+        } else {
+            resultDiv.innerHTML = '<p style="color: red; text-align: center;">Error generating diff</p>';
+        }
+    } catch (error) {
+        console.error(error);
+        resultDiv.innerHTML = '<p style="color: red; text-align: center;">Error: ' + error.message + '</p>';
+    }
+}
+
+// Toggle between diff modes
+function toggleDiffMode() {
+    const mode = document.querySelector('input[name="diffMode"]:checked').value;
+    document.getElementById('urlCompareMode').style.display = mode === 'url' ? 'block' : 'none';
+    document.getElementById('textCompareMode').style.display = mode === 'text' ? 'block' : 'none';
+}
+
+// Compare website versions
+async function compareWebsiteVersions() {
+    const url = document.getElementById('compareUrlInput').value.trim();
+    const resultDiv = document.getElementById('versionComparisonResult');
+
+    if (!url) {
+        alert('Please enter a URL');
+        return;
+    }
+
+    resultDiv.innerHTML = '<p style="text-align: center; padding: 40px; color: #666;">Loading versions...</p>';
+
+    try {
+        const response = await fetch('/api/compare-versions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to compare versions');
+        }
+
+        const data = await response.json();
+
+        // Display comparison
+        resultDiv.innerHTML = `
+            <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #eee;">
+                    <h3 style="margin: 0 0 5px 0; color: #333;">📊 Comparing: ${data.url}</h3>
+                    <p style="color: #666; margin: 0; font-size: 14px;">
+                        <strong>Old:</strong> ${data.old_version.date} → 
+                        <strong>New:</strong> ${data.new_version.date}
+                    </p>
+                </div>
+                
+                <div style="margin-bottom: 25px;">
+                    <h4 style="margin:0 0 10px 0; color: #4CAF50;">✨ Summaries</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div style="padding: 12px; background: #f5f5f5; border-radius: 8px; border-left: 3px solid #999;">
+                            <strong style="color: #666;">Old Version</strong>
+                            <p style="margin: 8px 0 0 0; font-size: 13px; color: #555;">${data.old_version.summary || 'No summary available'}</p>
+                        </div>
+                        <div style="padding: 12px; background: #e8f5e9; border-radius: 8px; border-left: 3px solid #4CAF50;">
+                            <strong style="color: #2e7d32;">New Version</strong>
+                            <p style="margin: 8px 0 0 0; font-size: 13px; color: #555;">${data.new_version.summary || 'No summary available'}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 style="margin: 0 0 10px 0; color: #2196F3;">📝 Text Diff</h4>
+                    <div style="max-height: 600px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px;">
+                        ${data.diff_html}
+                    </div>
+                </div>
+            </div>
+        `;
+
+    } catch (error) {
+        console.error(error);
+        resultDiv.innerHTML = `
+            <div style="text-align: center; padding: 40px; background: #ffebee; border-radius: 12px; color: #c62828;">
+                <h3 style="margin: 0 0 10px 0;">❌ Error</h3>
+                <p style="margin: 0;">${error.message}</p>
+                <p style="margin: 10px 0 0 0; font-size: 13px;">Make sure this URL has been monitored and has at least 2 versions.</p>
+            </div>
+        `;
+    }
+}
+
+// Quick access to view diff from analytics
+function viewDiffForUrl(url) {
+    // Switch to diff tab
+    showTab('diff');
+
+    // Set to URL comparison mode
+    document.querySelector('input[name="diffMode"][value="url"]').checked = true;
+    toggleDiffMode();
+
+    // Fill in the URL and trigger comparison
+    document.getElementById('compareUrlInput').value = url;
+    compareWebsiteVersions();
+}
+
+async function linkedinLogin() {
+    try {
+        const btn = event.target;
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ Opening Browser...";
+        btn.disabled = true;
+
+        const response = await fetch('/api/linkedin/login', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            alert("✅ Session Saved! You can now scrape LinkedIn pages.");
+        } else {
+            alert("❌ Login Failed: " + data.message);
+        }
+
+        btn.innerText = originalText;
+        btn.disabled = false;
+    } catch (error) {
+        alert("Error: " + error);
+    }
+}
+
+async function scrapeLinkedin() {
+    const url = document.getElementById('linkedinUrlInput').value;
+    if (!url) {
+        alert("Please enter a LinkedIn URL");
+        return;
+    }
+
+    const resultDiv = document.getElementById('linkedinResult');
+    resultDiv.innerHTML = '<p style="color: #666; text-align: center;">⏳ Scraping... This may take a few seconds.</p>';
+
+    try {
+        const response = await fetch('/api/linkedin/scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            resultDiv.innerHTML = `<pre style="background: #fff; padding: 15px; border-radius: 8px; overflow-x: auto;">${JSON.stringify(data.data, null, 2)}</pre>`;
+        } else {
+            resultDiv.innerHTML = `<p style="color: red; text-align: center;">❌ Error: ${data.message}</p>`;
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `<p style="color: red; text-align: center;">❌ Error: ${error}</p>`;
     }
 }
 

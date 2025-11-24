@@ -85,6 +85,17 @@ def init_db():
             changed BOOLEAN DEFAULT 0
         )
     ''')
+
+    # Create linkedin_data table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS linkedin_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT UNIQUE,
+            type TEXT,
+            data TEXT,
+            scraped_at TEXT
+        )
+    ''')
     # Check if scrape_history has content column
     cursor.execute("PRAGMA table_info(scrape_history)")
     columns = [info[1] for info in cursor.fetchall()]
@@ -367,9 +378,9 @@ def get_analytics(time_window="24h"):
     cursor.execute("SELECT page_url, COUNT(*) as count FROM change_events WHERE detected_at >= ? GROUP BY page_url ORDER BY count DESC LIMIT 5", (start_iso,))
     top_pages = [{"page_url": r['page_url'], "changes": r['count']} for r in cursor.fetchall()]
     
-    # Recent Changes Feed
-    cursor.execute("SELECT root_url, page_url, detected_at, diff_summary FROM change_events WHERE detected_at >= ? ORDER BY detected_at DESC LIMIT 10", (start_iso,))
-    recent_changes = [{"root_url": r['root_url'], "page_url": r['page_url'], "date": r['detected_at'], "summary": r['diff_summary']} for r in cursor.fetchall()]
+    # Recent Activity Feed (Only changes)
+    cursor.execute("SELECT url as page_url, scraped_at as date, summary, changed FROM scrape_history WHERE scraped_at >= ? AND changed=1 ORDER BY scraped_at DESC LIMIT 20", (start_iso,))
+    recent_changes = [{"page_url": r['page_url'], "date": r['date'], "summary": r['summary'], "changed": bool(r['changed'])} for r in cursor.fetchall()]
     
     # Per Root Site Insights
     cursor.execute("SELECT DISTINCT root_url FROM pages")
@@ -428,3 +439,45 @@ def get_analytics(time_window="24h"):
         "recent_changes": recent_changes,
         "per_root_site_insights": root_insights
     }
+
+def save_linkedin_data(url, type, data):
+    """Save LinkedIn data."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    now = datetime.datetime.now().isoformat()
+    import json
+    data_json = json.dumps(data)
+    
+    cursor.execute('''
+        INSERT INTO linkedin_data (url, type, data, scraped_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(url) DO UPDATE SET
+            data=excluded.data,
+            scraped_at=excluded.scraped_at
+    ''', (url, type, data_json, now))
+    conn.commit()
+    conn.close()
+
+def get_linkedin_data():
+    """Get all LinkedIn data."""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM linkedin_data ORDER BY scraped_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    import json
+    results = []
+    for r in rows:
+        try:
+            d = json.loads(r['data'])
+        except:
+            d = {}
+        results.append({
+            "url": r['url'],
+            "type": r['type'],
+            "scraped_at": r['scraped_at'],
+            "data": d
+        })
+    return results

@@ -13,14 +13,16 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Website Monitor & Scraper</h1>
-            <p>Monitor changes, scrape content, and get AI summaries.</p>
+            <h1>🌐 Website Monitor & Scraper</h1>
+            <p>Monitor changes, scrape content, chat with AI, and capture screenshots.</p>
         </div>
 
         <div class="nav-tabs">
             <button class="nav-tab active" onclick="showTab('monitor')">Monitor</button>
             <button class="nav-tab" onclick="showTab('analytics')">Analytics</button>
-            <button class="nav-tab" onclick="showTab('chat')">Chat (RAG)</button>
+            <button class="nav-tab" onclick="showTab('linkedin')">👔 LinkedIn</button>
+            <button class="nav-tab" onclick="showTab('chat')">💬 Chat (RAG)</button>
+            <button class="nav-tab" onclick="showTab('diff')">🔍 Visual Diff</button>
         </div>
 
         <!-- Monitor View -->
@@ -28,7 +30,7 @@
             <div class="input-group">
                 <input type="text" id="urlInput" placeholder="Enter website URL to monitor (e.g., https://example.com)">
                 <input type="password" id="apiKeyInput" placeholder="OpenAI API Key (Optional)">
-                <div style="display: flex; gap: 10px;">
+                <div style="display: flex; gap: 10px; align-items: center;">
                     <input type="number" id="intervalVal" value="60" min="1" style="width: 100px;">
                     <select id="intervalUnit" style="flex: 1;">
                         <option value="seconds">Seconds</option>
@@ -37,12 +39,18 @@
                         <option value="days">Days</option>
                     </select>
                 </div>
+                <div
+                    style="display: flex; align-items: center; gap: 10px; padding: 12px; background: #f0f7ff; border-radius: 8px; border: 1px solid #b3d9ff;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                        <input type="checkbox" id="captureScreenshots"
+                            style="width: 18px; height: 18px; cursor: pointer;">
+                        <strong>📸 Capture Screenshots</strong>
+                    </label>
+                    <span style="font-size: 13px; color: #666;">(Screenshots will be saved for all scraped pages)</span>
+                </div>
                 <button onclick="addUrl()">Start Monitoring</button>
             </div>
-
-            <div class="grid" id="pagesGrid">
-                <!-- Pages will be loaded here -->
-            </div>
+            <div class="grid" id="pagesGrid"></div>
         </div>
 
         <!-- Analytics View -->
@@ -55,11 +63,7 @@
                 </select>
                 <button onclick="loadAnalytics(document.getElementById('timeWindow').value)">Refresh</button>
             </div>
-
-            <div class="kpi-grid" id="kpiGrid">
-                <!-- KPIs will be loaded here -->
-            </div>
-
+            <div class="kpi-grid" id="kpiGrid"></div>
             <div class="charts-container">
                 <div class="chart-card">
                     <h3>Scrapes vs Changes</h3>
@@ -70,7 +74,6 @@
                     <canvas id="topSitesChart"></canvas>
                 </div>
             </div>
-
             <div class="analytics-details">
                 <div class="details-card">
                     <h3>Recent Changes</h3>
@@ -80,6 +83,31 @@
                     <h3>Site Insights</h3>
                     <div id="siteInsightsList" class="insights-list"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- LinkedIn View -->
+        <div id="linkedin-view" style="display: none;">
+            <div style="margin-bottom: 30px;">
+                <h2 style="margin: 0 0 10px 0;">👔 LinkedIn Scraper</h2>
+                <p style="color: #666;">Scrape profiles and company pages. Requires one-time login.</p>
+            </div>
+
+            <div class="input-group" style="margin-bottom: 20px;">
+                <button onclick="linkedinLogin()" style="background: #0077b5; color: white;">🔑 Login & Save
+                    Session</button>
+                <span style="margin-left: 10px; color: #666; font-size: 13px;">(Click this once to log in
+                    manually)</span>
+            </div>
+
+            <div class="input-group">
+                <input type="text" id="linkedinUrlInput" placeholder="Enter LinkedIn Profile or Company URL">
+                <button onclick="scrapeLinkedin()" style="background: #0077b5; color: white;">Scrape Data</button>
+            </div>
+
+            <div id="linkedinResult"
+                style="margin-top: 20px; padding: 20px; background: #f9f9f9; border-radius: 8px; min-height: 100px; white-space: pre-wrap;">
+                <p style="color: #999; text-align: center;">Scraped data will appear here...</p>
             </div>
         </div>
 
@@ -100,6 +128,82 @@
                 <input type="text" id="chatQueryInput" placeholder="Ask a question..."
                     onkeypress="if(event.key === 'Enter') sendChat()">
                 <button onclick="sendChat()">Send</button>
+            </div>
+        </div>
+
+        <!-- Visual Diff View -->
+        <div id="diff-view" style="display: none;">
+            <div style="margin-bottom: 30px;">
+                <h2 style="margin: 0 0 10px 0;">🔍 Website Change Comparison</h2>
+                <p style="color: #666;">Compare monitored website versions side-by-side with text changes</p>
+            </div>
+
+            <div
+                style="display: flex; gap: 15px; margin-bottom: 25px; padding: 15px; background: #f0f0f0; border-radius: 10px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="radio" name="diffMode" value="url" checked onchange="toggleDiffMode()">
+                    <strong>📊 Compare Monitored URL</strong> (Shows version history)
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="radio" name="diffMode" value="text" onchange="toggleDiffMode()">
+                    <strong>📝 Manual Text Comparison</strong>
+                </label>
+            </div>
+
+            <div id="urlCompareMode">
+                <div class="input-group" style="margin-bottom: 25px;">
+                    <input type="text" id="compareUrlInput" placeholder="Enter monitored URL to compare versions">
+                    <button onclick="compareWebsiteVersions()"
+                        style="background: #4CAF50; color: white; padding: 12px 24px; font-weight: 600;">🔍 Compare
+                        Versions</button>
+                </div>
+                <div id="versionComparisonResult">
+                    <div
+                        style="text-align: center; padding: 60px 20px; background: #f9f9f9; border-radius: 12px; color: #999;">
+                        <h3 style="margin: 0 0 10px 0; color: #666;">Enter a monitored URL above</h3>
+                        <p>I'll show you side-by-side comparison of the last two versions with text changes</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="textCompareMode" style="display: none;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 8px;">Original Text (Version
+                            1)</label>
+                        <textarea id="diffText1" rows="10"
+                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px;"
+                            placeholder="Paste original text here..."></textarea>
+                    </div>
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 8px;">New Text (Version
+                            2)</label>
+                        <textarea id="diffText2" rows="10"
+                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px;"
+                            placeholder="Paste new text here..."></textarea>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <button onclick="generateDiff()"
+                        style="padding: 12px 32px; background: #4CAF50; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: 600;">Generate
+                        Diff</button>
+                </div>
+                <div id="diffResult"
+                    style="margin-top: 20px; padding: 20px; background: #f9f9f9; border-radius: 8px; min-height: 100px;">
+                    <p style="color: #999; text-align: center;">Enter text in both boxes above and click "Generate Diff"
+                        to see the comparison.</p>
+                </div>
+            </div>
+
+            <div
+                style="margin-top: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                <strong>🎨 Legend:</strong>
+                <span style="background: #ffebee; padding: 2px 6px; margin-left: 10px; border-radius: 3px;">Red =
+                    Removed</span>
+                <span style="background: #e8f5e9; padding: 2px 6px; margin-left: 10px; border-radius: 3px;">Green =
+                    Added</span>
+                <span style="background: #f5f5f5; padding: 2px 6px; margin-left: 10px; border-radius: 3px;">Gray =
+                    Unchanged</span>
             </div>
         </div>
     </div>

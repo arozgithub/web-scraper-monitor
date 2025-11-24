@@ -101,11 +101,14 @@ def fetch_page_playwright(url, use_proxy=False, save_screenshot=False):
         print(f"Playwright Error fetching {url}: {e}")
         return None, None, None
 
-def fetch_page(url, render_js=False, use_proxy=False):
+def fetch_page(url, render_js=False, use_proxy=False, save_screenshot=False):
     """Fetch the HTML content of a page."""
-    if render_js:
-        result = fetch_page_playwright(url, use_proxy=use_proxy)
+    # If screenshots are requested, we must use Playwright (render_js=True)
+    if render_js or save_screenshot:
+        result = fetch_page_playwright(url, use_proxy=use_proxy, save_screenshot=save_screenshot)
         if result and result[0]:
+            # Currently we only return content and type to maintain compatibility
+            # Screenshot is saved to disk
             return result[0], result[1]
         return None, None
         

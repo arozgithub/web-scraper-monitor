@@ -65,9 +65,9 @@ def generate_master_summary(page_summaries, api_key=None):
 # Alias for compatibility
 summarize = summarize_text
 
-def chat_with_content(content, query, api_key):
+def chat_with_content(prompt, api_key):
     """
-    Answer a question based on the provided content (RAG-lite).
+    Answer a question based on the provided prompt (RAG-lite).
     """
     if not api_key:
         return "Error: API Key required for chat."
@@ -77,8 +77,8 @@ def chat_with_content(content, query, api_key):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant. Answer the user's question based ONLY on the provided website content. If the answer is not in the content, say so."},
-                {"role": "user", "content": f"Context:\n{content[:20000]}\n\nQuestion: {query}"}
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
             ]
         )
         return response.choices[0].message.content
