@@ -219,8 +219,9 @@ def _extract_company_data(page):
                 base_url += "/"
             posts_url = base_url + "posts/?feedView=all"
             
-            page.goto(posts_url)
-            time.sleep(3) # Wait for feed to load
+            # Use domcontentloaded for faster return, and longer timeout
+            page.goto(posts_url, wait_until="domcontentloaded", timeout=60000)
+            time.sleep(5) # Wait for feed to render (JS)
             
             # Scroll down a bit to trigger loading
             page.evaluate("window.scrollBy(0, 1000)")
