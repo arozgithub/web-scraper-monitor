@@ -6,6 +6,7 @@ import storage
 import scraper
 import analyzer
 import linkedin_scraper
+import outreach_service
 from scheduler_service import SchedulerService
 
 app = Flask(__name__)
@@ -377,6 +378,116 @@ def api_linkedin_scrape():
 def api_get_linkedin_data():
     """Get all saved LinkedIn data."""
     return jsonify(storage.get_linkedin_data())
+
+# --- Email Outreach Routes ---
+
+@app.route('/api/outreach/search', methods=['POST'])
+def api_search_leads():
+    """Trigger lead search in background."""
+    data = request.json
+    keywords = data.get('keywords', 'Home Health Care')
+    location = data.get('location', 'Southern California')
+    api_key = data.get('apiKey')
+    max_results = int(data.get('maxResults', 50))
+    
+    def run_search():
+        outreach_service.search_and_save_leads(keywords, location, api_key, max_results)
+    
+    # Run in background thread
+    thread = threading.Thread(target=run_search, daemon=True)
+    thread.start()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Searching for leads in {location}... This may take a few minutes.'
+    })
+
+@app.route('/api/outreach/leads', methods=['GET'])
+def api_get_leads():
+    """Get all leads."""
+    leads = storage.get_all_leads()
+    return jsonify({'leads': leads})
+
+@app.route('/api/outreach/leads/<int:lead_id>', methods=['PUT'])
+def api_update_lead(lead_id):
+    """Update a lead."""
+    data = request.json
+    storage.update_lead(lead_id, **data)
+    return jsonify({'success': True})
+
+@app.route('/api/outreach/leads/<int:lead_id>', methods=['DELETE'])
+def api_delete_lead(lead_id):
+    """Delete a lead."""
+    storage.delete_lead(lead_id)
+    return jsonify({'success': True})
+
+@app.route('/api/outreach/leads/clear', methods=['POST'])
+def api_clear_leads():
+    """Clear all leads."""
+    storage.clear_all_leads()
+    return jsonify({'success': True, 'message': 'All leads cleared'})
+
+@app.route('/api/outreach/send', methods=['POST'])
+def api_send_campaign():
+    """Send emails to leads."""
+    data = request.json
+    subject = data.get('subject')
+    body = data.get('body')
+    smtp_config = data.get('smtpConfig', {})
+    
+    if not subject or not body:
+        return jsonify({'error': 'Subject and body are required'}), 400
+    
+    if not all(k in smtp_config for k in ['host', 'port', 'username', 'password']):
+        return jsonify({'error': 'Complete SMTP configuration required'}), 400
+    
+    # Get all leads with 'new' status and email
+    leads = storage.get_all_leads()
+    pending_leads = [l for l in leads if l['status'] == 'new' and l['email']]
+    
+    if not pending_leads:
+        return jsonify({'error': 'No pending leads with email addresses found'}), 400
+    
+    def send_emails():
+        sent_count = 0
+        error_count = 0
+        
+        for lead in pending_leads:
+            # Personalize email
+            personalized_body = body.replace('{company_name}', lead['company_name'] or 'there')
+            personalized_body = personalized_body.replace('{contact_name}', lead['contact_name'] or 'there')
+            
+            # Send email
+            result = outreach_service.send_email(
+                to_email=lead['email'],
+                subject=subject,
+                body=personalized_body,
+                smtp_config=smtp_config
+            )
+            
+            if result['success']:
+                storage.update_lead_status(lead['id'], 'sent')
+                sent_count += 1
+                print(f"Sent email to {lead['email']}")
+            else:
+                storage.update_lead_status(lead['id'], 'error', result.get('error'))
+                error_count += 1
+                print(f"Failed to send to {lead['email']}: {result.get('error')}")
+            
+            # Rate limiting to avoid spam filters
+            import time
+            time.sleep(2)
+        
+        print(f"Email campaign complete: {sent_count} sent, {error_count} errors")
+    
+    # Run in background
+    thread = threading.Thread(target=send_emails, daemon=True)
+    thread.start()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Sending emails to {len(pending_leads)} leads...'
+    })
 
 if __name__ == '__main__':
     storage.init_db()

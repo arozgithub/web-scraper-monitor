@@ -200,6 +200,7 @@ function showTab(tabName) {
     document.getElementById('monitor-view').style.display = tabName === 'monitor' ? 'block' : 'none';
     document.getElementById('analytics-view').style.display = tabName === 'analytics' ? 'block' : 'none';
     document.getElementById('linkedin-view').style.display = tabName === 'linkedin' ? 'block' : 'none';
+    document.getElementById('outreach-view').style.display = tabName === 'outreach' ? 'block' : 'none';
     document.getElementById('chat-view').style.display = tabName === 'chat' ? 'block' : 'none';
     document.getElementById('diff-view').style.display = tabName === 'diff' ? 'block' : 'none';
 
@@ -207,6 +208,11 @@ function showTab(tabName) {
     if (tabName === 'analytics') {
         const timeWindow = document.getElementById('timeWindow').value;
         loadAnalytics(timeWindow);
+    }
+
+    // Load leads if switching to outreach tab
+    if (tabName === 'outreach') {
+        refreshLeads();
     }
 }
 
@@ -719,5 +725,199 @@ async function scrapeLinkedin() {
     }
 }
 
+// --- Email Outreach Functions ---
+
+async function searchLeads() {
+    const keywords = document.getElementById('outreachKeywords').value;
+    const location = document.getElementById('outreachLocation').value;
+    const apiKey = document.getElementById('outreachApiKey').value;
+    const maxResults = document.getElementById('outreachMaxResults').value;
+
+    if (!keywords || !location) {
+        alert('Please enter keywords and location');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/outreach/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keywords, location, apiKey, maxResults })
+        });
+
+        const data = await response.json();
+        alert(data.message);
+
+        // Refresh leads after a delay
+        setTimeout(refreshLeads, 2000);
+    } catch (error) {
+        console.error(error);
+        alert('Error searching leads');
+    }
+}
+
+async function refreshLeads() {
+    try {
+        const response = await fetch('/api/outreach/leads');
+        const data = await response.json();
+        renderLeads(data.leads);
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+function renderLeads(leads) {
+    const tbody = document.getElementById('leadsTableBody');
+    const leadCount = document.getElementById('leadCount');
+
+    if (leads.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="padding: 40px; text-align: center; color: #999;">
+                    No leads yet. Click "Search & Extract Contacts" to find companies.
+                </td>
+            </tr>
+        `;
+        leadCount.textContent = '';
+        return;
+    }
+
+    leadCount.textContent = `(${leads.length} total)`;
+
+    tbody.innerHTML = leads.map(lead => {
+        const statusColor = {
+            'new': '#2196F3',
+            'sent': '#4CAF50',
+            'error': '#f44336'
+        }[lead.status] || '#999';
+
+        return `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 12px;">
+                    <input type="text" value="${lead.company_name || ''}" 
+                        onchange="updateLead(${lead.id}, 'company_name', this.value)"
+                        style="border: 1px solid #ddd; padding: 4px 8px; border-radius: 4px; width: 100%;">
+                </td>
+                <td style="padding: 12px;">
+                    <input type="email" value="${lead.email || ''}" 
+                        onchange="updateLead(${lead.id}, 'email', this.value)"
+                        style="border: 1px solid #ddd; padding: 4px 8px; border-radius: 4px; width: 100%;">
+                </td>
+                <td style="padding: 12px;">
+                    <input type="text" value="${lead.contact_name || ''}" 
+                        onchange="updateLead(${lead.id}, 'contact_name', this.value)"
+                        style="border: 1px solid #ddd; padding: 4px 8px; border-radius: 4px; width: 100%;">
+                </td>
+                <td style="padding: 12px;">${lead.location || 'N/A'}</td>
+                <td style="padding: 12px;">
+                    <span style="padding: 4px 8px; border-radius: 4px; background: ${statusColor}; color: white; font-size: 12px;">
+                        ${lead.status}
+                    </span>
+                </td>
+                <td style="padding: 12px;">
+                    <button onclick="deleteLead(${lead.id})" style="background: #f44336; color: white; border:none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                        🗑️
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function updateLead(leadId, field, value) {
+    try {
+        await fetch(`/api/outreach/leads/${leadId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [field]: value })
+        });
+    } catch (error) {
+        console.error(error);
+        alert('Error updating lead');
+    }
+}
+
+async function deleteLead(leadId) {
+    if (!confirm('Delete this lead?')) return;
+
+    try {
+        await fetch(`/api/outreach/leads/${leadId}`, { method: 'DELETE' });
+        refreshLeads();
+    } catch (error) {
+        console.error(error);
+        alert('Error deleting lead');
+    }
+}
+
+async function clearLeads() {
+    if (!confirm('Clear all leads? This cannot be undone.')) return;
+
+    try {
+        const response = await fetch('/api/outreach/leads/clear', { method: 'POST' });
+        const data = await response.json();
+        alert(data.message);
+        refreshLeads();
+    } catch (error) {
+        console.error(error);
+        alert('Error clearing leads');
+    }
+}
+
+async function sendCampaign() {
+    const subject = document.getElementById('emailSubject').value;
+    const body = document.getElementById('emailBody').value;
+    const smtpHost = document.getElementById('smtpHost').value;
+    const smtpPort = document.getElementById('smtpPort').value;
+    const smtpUsername = document.getElementById('smtpUsername').value;
+    const smtpPassword = document.getElementById('smtpPassword').value;
+    const smtpFromEmail = document.getElementById('smtpFromEmail').value || smtpUsername;
+
+    if (!subject || !body) {
+        alert('Please enter email subject and body');
+        return;
+    }
+
+    if (!smtpHost || !smtpPort || !smtpUsername || !smtpPassword) {
+        alert('Please complete SMTP configuration');
+        return;
+    }
+
+    if (!confirm('Send emails to all pending leads? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/outreach/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject,
+                body,
+                smtpConfig: {
+                    host: smtpHost,
+                    port: parseInt(smtpPort),
+                    username: smtpUsername,
+                    password: smtpPassword,
+                    from_email: smtpFromEmail
+                }
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(data.message);
+            // Refresh leads after a delay to see updated statuses
+            setTimeout(refreshLeads, 3000);
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error(error);
+        alert('Error sending campaign');
+    }
+}
+
 // Initial load
 fetchPages();
+;

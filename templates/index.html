@@ -21,6 +21,7 @@
             <button class="nav-tab active" onclick="showTab('monitor')">Monitor</button>
             <button class="nav-tab" onclick="showTab('analytics')">Analytics</button>
             <button class="nav-tab" onclick="showTab('linkedin')">👔 LinkedIn</button>
+            <button class="nav-tab" onclick="showTab('outreach')">📧 Outreach</button>
             <button class="nav-tab" onclick="showTab('chat')">💬 Chat (RAG)</button>
             <button class="nav-tab" onclick="showTab('diff')">🔍 Visual Diff</button>
         </div>
@@ -28,7 +29,7 @@
         <!-- Monitor View -->
         <div id="monitor-view">
             <div class="input-group">
-                <input type="text" id="urlInput" placeholder="Enter website URL to monitor (e.g., https://example.com)">
+                <input type="text" id="urlInput" placeholder="Enter website URL to monitor (e.g.,https://example.com)">
                 <input type="password" id="apiKeyInput" placeholder="OpenAI API Key (Optional)">
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <input type="number" id="intervalVal" value="60" min="1" style="width: 100px;">
@@ -108,6 +109,98 @@
             <div id="linkedinResult"
                 style="margin-top: 20px; padding: 20px; background: #f9f9f9; border-radius: 8px; min-height: 100px; white-space: pre-wrap;">
                 <p style="color: #999; text-align: center;">Scraped data will appear here...</p>
+            </div>
+        </div>
+
+        <!-- Outreach View -->
+        <div id="outreach-view" style="display: none;">
+            <div style="margin-bottom: 30px;">
+                <h2 style="margin: 0 0 10px 0;">📧 Email Outreach Campaign</h2>
+                <p style="color: #666;">Search for nursing home companies and send personalized emails.</p>
+            </div>
+
+            <!-- Search Section -->
+            <div class="input-group"
+                style="margin-bottom: 30px; border: 2px solid #e3f2fd; padding: 20px; border-radius: 8px; background: #f8fbff;">
+                <h3 style="margin: 0 0 15px 0;">🔍 Find Leads</h3>
+                <input type="text" id="outreachKeywords" placeholder="Keywords (e.g., Home Health Care)"
+                    value="Home Health Care">
+                <input type="text" id="outreachLocation" placeholder="Location (e.g., Los Angeles County)"
+                    value="Southern California">
+                <input type="password" id="outreachApiKey"
+                    placeholder="OpenAI API Key (Optional - for contact name extraction)">
+                <input type="number" id="outreachMaxResults" placeholder="Max Results" value="50" min="1" max="100"
+                    style="width: 150px;">
+                <button onclick="searchLeads()" style="background: #4CAF50; color: white;">Search & Extract
+                    Contacts</button>
+                <button onclick="clearLeads()" style="background: #f44336; color: white;">Clear All Leads</button>
+            </div>
+
+            <!-- Leads Table -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="margin: 0 0 15px 0;">📋 Found Leads <span id="leadCount"
+                        style="color: #666; font-size: 14px;"></span></h3>
+                <button onclick="refreshLeads()" style="margin-bottom: 10px;">🔄 Refresh</button>
+                <div style="overflow-x: auto;">
+                    <table id="leadsTable"
+                        style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <thead>
+                            <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+                                <th style="padding: 12px; text-align: left;">Company</th>
+                                <th style="padding: 12px; text-align: left;">Email</th>
+                                <th style="padding: 12px; text-align: left;">Contact</th>
+                                <th style="padding: 12px; text-align: left;">Location</th>
+                                <th style="padding: 12px; text-align: left;">Status</th>
+                                <th style="padding: 12px; text-align: left;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leadsTableBody">
+                            <tr>
+                                <td colspan="6" style="padding: 40px; text-align: center; color: #999;">
+                                    No leads yet. Click "Search & Extract Contacts" to find companies.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Email Campaign Section -->
+            <div class="input-group"
+                style="border: 2px solid #fff3cd; padding: 20px; border-radius: 8px; background: #fffbf0;">
+                <h3 style="margin: 0 0 15px 0;">✉️ Email Campaign</h3>
+
+                <h4 style="margin: 15px 0 8px 0;">SMTP Configuration</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <input type="text" id="smtpHost" placeholder="SMTP Host (e.g., smtp.gmail.com)"
+                        value="smtp.gmail.com">
+                    <input type="number" id="smtpPort" placeholder="Port (e.g., 587)" value="587">
+                    <input type="text" id="smtpUsername" placeholder="SMTP Username">
+                    <input type="password" id="smtpPassword" placeholder="SMTP Password (App Password)">
+                    <input type="text" id="smtpFromEmail" placeholder="From Email Address">
+                </div>
+
+                <h4 style="margin: 15px 0 8px 0;">Email Template</h4>
+                <input type="text" id="emailSubject" placeholder="Email Subject"
+                    value="Healthcare Partnership Opportunity">
+                <textarea id="emailBody" rows="8"
+                    placeholder="Email body (HTML supported). Use {company_name} and {contact_name} for personalization."
+                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Courier New', monospace;"><p>Dear {contact_name},</p>
+
+<p>I hope this message finds you well. I wanted to reach out to {company_name} regarding a potential partnership opportunity.</p>
+
+<p>Please visit our website for more information: <a href="https://example.com">Learn More</a></p>
+
+<p>Best regards,<br>Your Name</p></textarea>
+
+                <button onclick="sendCampaign()"
+                    style="background: #FF9800; color: white; font-size: 16px; padding: 15px;">
+                    📤 Send Emails to All Pending Leads
+                </button>
+                <p style="color: #666; font-size: 13px; margin-top: 10px;">
+                    ⚠️ Emails will be sent one by one to all leads with "new" status. Make sure SMTP settings are
+                    correct.
+                </p>
             </div>
         </div>
 

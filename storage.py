@@ -96,6 +96,23 @@ def init_db():
             scraped_at TEXT
         )
     ''')
+    
+    # Create leads table for email outreach
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_name TEXT,
+            url TEXT,
+            email TEXT,
+            contact_name TEXT,
+            location TEXT,
+            status TEXT DEFAULT 'new',
+            created_at TEXT,
+            sent_at TEXT,
+            error_message TEXT
+        )
+    ''')
+    
     # Check if scrape_history has content column
     cursor.execute("PRAGMA table_info(scrape_history)")
     columns = [info[1] for info in cursor.fetchall()]
@@ -481,3 +498,92 @@ def get_linkedin_data():
             "data": d
         })
     return results
+
+# --- Lead Management Functions ---
+
+def save_lead(company_name, url, email=None, contact_name=None, location=None):
+    """Save a new lead to the database."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    now = datetime.datetime.now().isoformat()
+    
+    cursor.execute('''
+        INSERT INTO leads (company_name, url, email, contact_name, location, status, created_at)
+        VALUES (?, ?, ?, ?, ?, 'new', ?)
+    ''', (company_name, url, email, contact_name, location, now))
+    
+    lead_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return lead_id
+
+def get_all_leads():
+    """Get all leads from the database."""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM leads ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [dict(r) for r in rows]
+
+def update_lead_status(lead_id, status, error_message=None):
+    """Update lead status (e.g., 'sent', 'error')."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    now = datetime.datetime.now().isoformat()
+    
+    if status == 'sent':
+        cursor.execute('''
+            UPDATE leads 
+            SET status = ?, sent_at = ?, error_message = NULL
+            WHERE id = ?
+        ''', (status, now, lead_id))
+    else:
+        cursor.execute('''
+            UPDATE leads 
+            SET status = ?, error_message = ?
+            WHERE id = ?
+        ''', (status, error_message, lead_id))
+    
+    conn.commit()
+    conn.close()
+
+def update_lead(lead_id, **kwargs):
+    """Update lead fields."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    allowed_fields = ['company_name', 'url', 'email', 'contact_name', 'location']
+    updates = []
+    values = []
+    
+    for field, value in kwargs.items():
+        if field in allowed_fields:
+            updates.append(f"{field} = ?")
+            values.append(value)
+    
+    if updates:
+        values.append(lead_id)
+        query = f"UPDATE leads SET {', '.join(updates)} WHERE id = ?"
+        cursor.execute(query, values)
+        conn.commit()
+    
+    conn.close()
+
+def delete_lead(lead_id):
+    """Delete a lead."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM leads WHERE id = ?", (lead_id,))
+    conn.commit()
+    conn.close()
+
+def clear_all_leads():
+    """Clear all leads from the database."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM leads")
+    conn.commit()
+    conn.close()
